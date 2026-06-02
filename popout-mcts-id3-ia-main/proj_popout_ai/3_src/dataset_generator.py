@@ -1,0 +1,143 @@
+import pandas as pd
+from game import PopOutGame
+from mcts import MCTS
+import time # IMPORTAÇÃO DE TIME PARA TESTES DE TEMPO (OPCIONAL)
+#import os # IMPORTAÇÃO DE OS PARA VER SE O DATASET EXISTE (OPCIONAL)
+import random
+from mcts import MCTS, MCTS_Heuristic
+
+
+def generate_dataset(n_games=600):
+    start = time.time() # INÍCIO DO TIMER (OPCIONAL)
+
+    data = []
+    mcts = MCTS(iterations=70)
+    mcts_heuristic = MCTS_Heuristic(iterations=40)  # MCTS HEURÍSTICO PARA AS PRIMEIRAS JOGADAS, POIS SÃO MAIS CRÍTICAS E O MCTS COMPLETO PODE SER MUITO LENTO DEVIDO À GRANDE QUANTIDADE DE POSSIBILIDADES
+    
+    print("\nA gerar dataset...")
+    print("...........................\n")
+
+    wins_p1 = 0
+    wins_p2 = 0
+    draws = 0
+
+    total_moves = 0 # CONTADOR DE JOGADAS PARA CALCULAR MÉDIA DE JOGADAS POR JOGO
+
+    for i in range(n_games): # GERAR N JOGOS PARA O DATASET
+        if i == 0:
+            print(f"Jogo {i+1}/{n_games}")
+        elif i == 9:
+            print(f"Jogo {i+1}/{n_games}")
+        elif (i + 1) % 10 == 0:
+            print(f"Jogo {i+1}/{n_games}")
+
+        game = PopOutGame()
+
+        # alternar jogador inicial
+        if i % 2 == 0:
+            game.current_player = 1
+        else:
+            game.current_player = 2
+
+        moves_count = 0
+        
+        game_data = [] # PARA ARMAZENAR AS JOGADAS DE CADA JOGO SEPARADAMENTE, SE QUISERES ANALISAR DEPOIS
+        while True:
+            sample = {}
+
+            # ==================================================
+            # TABULEIRO
+            # ==================================================
+
+            for r in range(game.rows):
+                for c in range(game.cols):
+                    sample[f"cell_{r}_{c}"] = game.board[r][c]
+
+            # ==================================================
+            # JOGADOR ATUAL
+            # ==================================================
+
+            sample["current_player"] = game.current_player
+
+            #if random.random() < 0.7:
+             #   move = mcts.get_best_move(game)
+            #else:
+             #   move = mcts_heuristic.get_best_move(game)
+
+            r = random.random()
+            if r < 0.05:
+                    # 5% de chance de uma jogada completamente aleatória
+                move = random.choice(game.get_valid_moves())
+            elif r < 0.715:  # Corresponde a 0.05 (aleatório) + 0.665 (MCTS padrão)
+                    # 66.5% de chance de usar o MCTS padrão
+                move = mcts.get_best_move(game)
+            else:
+                    # 28.5% de chance de usar o MCTS com heurística
+                move = mcts_heuristic.get_best_move(game)
+            
+
+            move_type, col = move
+
+            label = f"{move_type}_{col}"
+
+            row = sample.copy()
+
+            row["move_type"] = move_type
+            row["move_col"] = col
+
+            game_data.append(row)
+
+            game.make_move(move_type, col)
+            moves_count += 1
+            
+
+            winner = game.check_winner(move_type)
+            if winner:
+                total_moves += moves_count
+                for row in game_data:
+                    row["winner"] = winner
+                    data.append(row)
+                
+                if winner == 1:
+                    wins_p1 += 1
+                else:
+                    wins_p2 += 1
+                
+                break
+
+            draw = game.check_draw()
+            if draw:
+                total_moves += moves_count # CONTAR A JOGADA QUE LEVOU AO EMPATE
+                draws += 1
+                for row in game_data:
+                    row["winner"] = 0
+                    data.append(row)
+                break
+
+    df = pd.DataFrame(data)
+
+    #os.makedirs("1_data", exist_ok=True)
+    df.to_csv("../1_data/dataset_popout_game_3.csv", index=False)
+    print("\n------------------------------")
+    print("dataset_popout_game criado!")
+    print("------------------------------\n")
+
+    print(f"Total de jogadas geradas: {len(data)}")
+
+    end = time.time()
+    print(f"Tempo total: {end - start:.2f}s")
+
+    avgG = total_moves / n_games
+    print(f"Média de jogadas por jogo: {avgG:.2f}")
+
+    avg = (end - start) / n_games
+    print(f"Tempo médio por jogo: {avg:.2f}s")
+
+    print("\n------------------------------")
+    print(f"\nResultados:")
+    print(f"Jogador 1 venceu: {wins_p1}")
+    print(f"Jogador 2 venceu: {wins_p2}")
+    print(f"Empates: {draws}")
+    
+if __name__ == "__main__":
+    generate_dataset(n_games=10)
